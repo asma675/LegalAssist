@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { --bg: 250 249 255; }
+html, body { height: 100%; }
+body { background: rgb(var(--bg)); color: #0f172a; }
+
+/* subtle background texture */
+.bg-texture {
+  background-image: radial-gradient(rgba(124,58,237,0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
