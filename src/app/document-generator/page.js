@@ -1,154 +1,308 @@
-'use client';
+"use client";
 
-import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Card, CardHeader, Button, Input, Select, Textarea, Badge } from '../../components/ui';
-import { useLocalState } from '../../lib/useLocalState';
-import { generateDocumentBody, newId } from '../../lib/localDb';
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
-const TYPES = [
-  { key: 'contract', title: 'Contract', desc: 'Professional contract template' },
-  { key: 'nda', title: 'NDA', desc: 'Non-disclosure agreement' },
-  { key: 'agreement', title: 'Agreement', desc: 'General agreement document' },
-  { key: 'legal_letter', title: 'Legal Letter', desc: 'Formal legal correspondence' },
-  { key: 'privacy_policy', title: 'Privacy Policy', desc: 'Website privacy policy' },
-  { key: 'terms', title: 'Terms of Service', desc: 'Website terms & conditions' }
-];
+const LS_DOCS_KEY = "legalassist.documents.v1";
+
+function loadDocs() {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(LS_DOCS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveDocs(docs) {
+  localStorage.setItem(LS_DOCS_KEY, JSON.stringify(docs));
+}
+
+function createDoc({
+  title,
+  type,
+  clientName,
+  matter,
+  content,
+  meta = {},
+}) {
+  const now = new Date().toISOString();
+  return {
+    id: crypto.randomUUID(),
+    title: title || `${type} — ${clientName || "Client"}`,
+    type,
+    clientName: clientName || "",
+    matter: matter || "",
+    content: content || "",
+    createdAt: now,
+    updatedAt: now,
+    status: "draft",
+    meta,
+  };
+}
 
 export default function DocumentGeneratorPage() {
-  const { update } = useLocalState();
   const router = useRouter();
 
-  const [step, setStep] = useState(1);
-  const [docType, setDocType] = useState('contract');
-  const [title, setTitle] = useState('Employment Contract - Senior Developer');
-  const [client, setClient] = useState('Global Solutions Ltd.');
-  const [jurisdiction, setJurisdiction] = useState('California');
-  const [notes, setNotes] = useState('Include confidentiality + IP assignment. Provide standard at-will language.');
+  const [docType, setDocType] = useState("NDA");
+  const [title, setTitle] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [matter, setMatter] = useState("");
+  const [jurisdiction, setJurisdiction] = useState("Ontario, Canada");
+  const [tone, setTone] = useState("Professional");
+  const [keyTerms, setKeyTerms] = useState("");
+  const [notes, setNotes] = useState("");
 
-  const selected = useMemo(() => TYPES.find(t => t.key === docType), [docType]);
-  const preview = useMemo(() => generateDocumentBody({ docType, title, client, jurisdiction, notes }), [docType, title, client, jurisdiction, notes]);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState("");
+  const [draft, setDraft] = useState("");
 
-  const create = () => {
-    const id = newId('doc');
-    update(s => {
-      s.documents.unshift({
-        id,
-        title,
-        type: docType,
-        status: 'draft',
-        client,
-        createdAt: new Date().toISOString().slice(0,10),
-        summary: (selected?.desc || 'Generated document') + ' (Local demo).',
-        jurisdiction,
-        notes,
-        body: preview
+  const prompt = useMemo(() => {
+    return `Draft a ${docType}.
+
+Client: ${clientName || "(not provided)"}
+Matter/Context: ${matter || "(not provided)"}
+Jurisdiction: ${jurisdiction || "(not provided)"}
+Tone: ${tone || "Professional"}
+
+Key terms / constraints (must include if relevant):
+${keyTerms || "(none)"}
+
+Additional notes:
+${notes || "(none)"}
+
+Output requirements:
+- Use clear headings and numbered clauses.
+- Keep it practical and readable.
+- Include standard sections for this document type.
+- Add placeholders where information is missing (e.g., [Effective Date], [Disclosing Party]).
+- Provide the final document text only (no commentary).`;
+  }, [docType, clientName, matter, jurisdiction, tone, keyTerms, notes]);
+
+  async function onGenerate() {
+    setError("");
+    setDraft("");
+    setGenerating(true);
+
+    try {
+      const res = await fetch("/api/ai/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system:
+            "You are a careful legal drafting assistant. Draft professional documents, avoid hallucinating facts, and use placeholders when details are missing.",
+          prompt,
+        }),
       });
-      s.metrics.totalDocuments = s.documents.length;
-      s.metrics.aiGenerations = (s.metrics.aiGenerations || 0) + 1;
-      s.metrics.timeSavedHours = (s.metrics.timeSavedHours || 0) + 1;
-      return s;
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "AI generation failed");
+      setDraft(data?.text || "");
+    } catch (e) {
+      setError(e?.message || "Something went wrong.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function onSave() {
+    setError("");
+    if (!draft.trim()) {
+      setError("Nothing to save yet — generate a draft first.");
+      return;
+    }
+
+    const docs = loadDocs();
+    const doc = createDoc({
+      title: title || `${docType} — ${clientName || "Client"}`,
+      type: docType,
+      clientName,
+      matter,
+      content: draft,
+      meta: { jurisdiction, tone, keyTerms, notes },
     });
-    router.push(`/documents/${id}`);
-  };
+
+    const next = [doc, ...docs];
+    saveDocs(next);
+
+    // Go to documents list or document details if you have it
+    // If you already have /documents/[id], use router.push(`/documents/${doc.id}`)
+    router.push("/documents");
+  }
+
+  async function onCopy() {
+    try {
+      await navigator.clipboard.writeText(draft);
+    } catch {
+      // ignore
+    }
+  }
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader title="Document Generator" right={<Badge tone="violet">LocalStorage Demo</Badge>} />
-        <div className="p-5">
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <Step active={step===1} label="Select Type" />
-            <Dot />
-            <Step active={step===2} label="Fill Details" />
-            <Dot />
-            <Step active={step===3} label="Generate" />
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold">Document Generator</h1>
+        <p className="text-sm opacity-80">
+          Generate a legal draft with AI, then save it to LocalStorage.
+        </p>
+      </div>
+
+      {error ? (
+        <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Left: Inputs */}
+        <div className="rounded-2xl border bg-white/5 p-5">
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Document type</label>
+              <select
+                className="rounded-lg border bg-transparent px-3 py-2"
+                value={docType}
+                onChange={(e) => setDocType(e.target.value)}
+              >
+                <option>NDA</option>
+                <option>Employment Offer Letter</option>
+                <option>Independent Contractor Agreement</option>
+                <option>Service Agreement</option>
+                <option>Privacy Policy</option>
+                <option>Terms of Service</option>
+                <option>Cease &amp; Desist Letter</option>
+              </select>
+            </div>
+
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Title (optional)</label>
+              <input
+                className="rounded-lg border bg-transparent px-3 py-2"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g., Mutual NDA — Project Aurora"
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Client name</label>
+                <input
+                  className="rounded-lg border bg-transparent px-3 py-2"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  placeholder="e.g., Acme Inc."
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Matter / context</label>
+                <input
+                  className="rounded-lg border bg-transparent px-3 py-2"
+                  value={matter}
+                  onChange={(e) => setMatter(e.target.value)}
+                  placeholder="e.g., Vendor onboarding"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Jurisdiction</label>
+                <input
+                  className="rounded-lg border bg-transparent px-3 py-2"
+                  value={jurisdiction}
+                  onChange={(e) => setJurisdiction(e.target.value)}
+                  placeholder="e.g., Ontario, Canada"
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Tone</label>
+                <select
+                  className="rounded-lg border bg-transparent px-3 py-2"
+                  value={tone}
+                  onChange={(e) => setTone(e.target.value)}
+                >
+                  <option>Professional</option>
+                  <option>Friendly</option>
+                  <option>Firm</option>
+                  <option>Plain English</option>
+                  <option>Formal</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">
+                Key terms / constraints (bullets ok)
+              </label>
+              <textarea
+                className="min-h-[110px] rounded-lg border bg-transparent px-3 py-2"
+                value={keyTerms}
+                onChange={(e) => setKeyTerms(e.target.value)}
+                placeholder={`- Term: 2 years
+- Confidentiality covers source code + customer lists
+- No reverse engineering
+- Governing law: Ontario`}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Additional notes</label>
+              <textarea
+                className="min-h-[90px] rounded-lg border bg-transparent px-3 py-2"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Anything else the draft should include or avoid…"
+              />
+            </div>
+
+            <button
+              onClick={onGenerate}
+              disabled={generating}
+              className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            >
+              {generating ? "Generating…" : "Generate Draft"}
+            </button>
+          </div>
+        </div>
+
+        {/* Right: Output */}
+        <div className="rounded-2xl border bg-white/5 p-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">Draft</h2>
+              <p className="text-xs opacity-70">
+                You can edit this text before saving.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={onCopy}
+                disabled={!draft.trim()}
+                className="rounded-lg border px-3 py-2 text-xs disabled:opacity-50"
+              >
+                Copy
+              </button>
+              <button
+                onClick={onSave}
+                disabled={!draft.trim()}
+                className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
+              >
+                Save Document
+              </button>
+            </div>
           </div>
 
-          {step === 1 ? (
-            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-              {TYPES.map(t => (
-                <button
-                  key={t.key}
-                  onClick={() => setDocType(t.key)}
-                  className={[
-                    'text-left rounded-2xl border bg-white p-5 transition hover:shadow-lg',
-                    t.key === docType ? 'border-violet-400 ring-2 ring-violet-200' : ''
-                  ].join(' ')}
-                >
-                  <div className="text-base font-semibold">{t.title}</div>
-                  <div className="mt-1 text-sm text-slate-500">{t.desc}</div>
-                </button>
-              ))}
-              <div className="md:col-span-2 flex justify-end">
-                <Button onClick={() => setStep(2)}>Continue →</Button>
-              </div>
-            </div>
-          ) : null}
-
-          {step === 2 ? (
-            <div className="mt-5 space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Field label="Document Type">
-                  <Select value={docType} onChange={e => setDocType(e.target.value)}>
-                    {TYPES.map(t => <option key={t.key} value={t.key}>{t.title}</option>)}
-                  </Select>
-                </Field>
-                <Field label="Jurisdiction">
-                  <Input value={jurisdiction} onChange={e => setJurisdiction(e.target.value)} placeholder="e.g., California" />
-                </Field>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Field label="Document Title">
-                  <Input value={title} onChange={e => setTitle(e.target.value)} />
-                </Field>
-                <Field label="Client / Party">
-                  <Input value={client} onChange={e => setClient(e.target.value)} />
-                </Field>
-              </div>
-
-              <Field label="Notes / Requirements">
-                <Textarea rows={4} value={notes} onChange={e => setNotes(e.target.value)} />
-              </Field>
-
-              <div className="flex justify-between">
-                <Button variant="outline" onClick={() => setStep(1)}>← Back</Button>
-                <Button onClick={() => setStep(3)}>Continue →</Button>
-              </div>
-            </div>
-          ) : null}
-
-          {step === 3 ? (
-            <div className="mt-5 space-y-4">
-              <div className="rounded-2xl border bg-slate-50 p-4">
-                <div className="text-sm font-medium text-slate-900">Preview</div>
-                <pre className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{preview}</pre>
-              </div>
-              <div className="flex flex-wrap justify-between gap-2">
-                <Button variant="outline" onClick={() => setStep(2)}>← Back</Button>
-                <Button onClick={create}>Generate Document</Button>
-              </div>
-              <div className="text-xs text-slate-500">
-                Demo disclaimer: content is placeholder text generated locally. For real use, connect an API + attorney review.
-              </div>
-            </div>
-          ) : null}
+          <textarea
+            className="min-h-[520px] w-full rounded-xl border bg-transparent px-3 py-3 text-sm leading-6"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Your AI draft will appear here…"
+          />
         </div>
-      </Card>
-    </div>
-  );
-}
-
-function Step({ active, label }) {
-  return <span className={['rounded-full px-3 py-1', active ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-600'].join(' ')}>{label}</span>;
-}
-function Dot(){ return <span className="text-slate-400">•</span>; }
-function Field({ label, children }) {
-  return (
-    <div>
-      <div className="mb-1 text-sm font-medium text-slate-700">{label}</div>
-      {children}
+      </div>
     </div>
   );
 }
