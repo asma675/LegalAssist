@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 
-export const runtime = "nodejs"; // important for Vercel stability
+export const runtime = "nodejs"; // keep it on Node for stability on Vercel
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -8,19 +8,26 @@ const client = new OpenAI({
 
 export async function POST(req) {
   try {
+    if (!process.env.OPENAI_API_KEY) {
+      return Response.json(
+        { error: "OPENAI_API_KEY is not set" },
+        { status: 400 }
+      );
+    }
+
     const body = await req.json();
     const { prompt, system } = body || {};
 
-    if (!process.env.OPENAI_API_KEY) {
-      return Response.json({ error: "Missing OPENAI_API_KEY" }, { status: 400 });
-    }
-    if (!prompt) {
-      return Response.json({ error: "Missing prompt" }, { status: 400 });
+    if (!prompt || typeof prompt !== "string") {
+      return Response.json(
+        { error: "Missing prompt (string)" },
+        { status: 400 }
+      );
     }
 
     const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
-    // Responses API (recommended modern endpoint)
+    // Use Responses API 
     const r = await client.responses.create({
       model,
       input: [
@@ -29,12 +36,11 @@ export async function POST(req) {
       ],
     });
 
-    // Safely extract text
     const text = r.output_text || "";
     return Response.json({ text });
   } catch (err) {
     return Response.json(
-      { error: err?.message || "AI generate failed" },
+      { error: err?.message || "Generate failed" },
       { status: 500 }
     );
   }
