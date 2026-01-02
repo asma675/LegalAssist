@@ -1,72 +1,107 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { Card, CardHeader, Badge, Button } from '../../../components/ui';
-import { useLocalState } from '../../../lib/useLocalState';
-import { generateDocumentBody } from '../../../lib/localDb';
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 
-function tone(s) {
-  if (s === 'final') return 'green';
-  if (s === 'review') return 'amber';
-  if (s === 'draft') return 'slate';
-  return 'slate';
+const LS_DOCS_KEY = "legalassist.documents.v1";
+
+function loadDocs() {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(LS_DOCS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
 }
 
-export default function DocumentView({ params }) {
-  const { state, update } = useLocalState();
-  const doc = (state.documents ?? []).find(d => d.id === params.id);
+function saveDocs(docs) {
+  localStorage.setItem(LS_DOCS_KEY, JSON.stringify(docs));
+}
+
+export default function DocumentDetailPage() {
+  const { id } = useParams();
+  const router = useRouter();
+
+  const [docs, setDocs] = useState([]);
+
+  useEffect(() => {
+    setDocs(loadDocs());
+  }, []);
+
+  const doc = useMemo(() => docs.find((d) => d.id === id), [docs, id]);
+
+  function onDelete() {
+    const next = docs.filter((d) => d.id !== id);
+    saveDocs(next);
+    router.push("/documents");
+  }
 
   if (!doc) {
     return (
-      <Card className="p-6">
-        <div className="text-lg font-semibold">Document not found</div>
-        <Link className="mt-2 inline-block text-sm text-violet-700 hover:underline" href="/documents">Back to documents</Link>
-      </Card>
+      <div className="mx-auto max-w-4xl px-4 py-8">
+        <div className="rounded-2xl border bg-white/5 p-6">
+          <h1 className="text-xl font-semibold">Document not found</h1>
+          <p className="mt-2 text-sm opacity-80">
+            This document ID doesn’t exist in LocalStorage.
+          </p>
+          <button
+            onClick={() => router.push("/documents")}
+            className="mt-4 rounded-lg border px-4 py-2 text-sm"
+          >
+            Back to Documents
+          </button>
+        </div>
+      </div>
     );
   }
 
-  const body = doc.body || generateDocumentBody({
-    docType: doc.type,
-    client: doc.client,
-    title: doc.title,
-    jurisdiction: doc.jurisdiction,
-    notes: doc.notes
-  });
-
-  const saveAsDraft = () => {
-    update(s => {
-      const idx = s.documents.findIndex(d => d.id === doc.id);
-      if (idx >= 0) s.documents[idx].status = 'draft';
-      return s;
-    });
-  };
-
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader
-          title={doc.title}
-          right={
-            <div className="flex items-center gap-2">
-              <Badge tone="violet">{doc.type}</Badge>
-              <Badge tone={tone(doc.status)}>{doc.status}</Badge>
-            </div>
-          }
-        />
-        <div className="p-5 space-y-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div className="text-sm text-slate-600"><span className="font-medium text-slate-900">Client:</span> {doc.client || '—'}</div>
-            <div className="text-sm text-slate-600"><span className="font-medium text-slate-900">Created:</span> {doc.createdAt}</div>
-          </div>
-
-          <pre className="whitespace-pre-wrap rounded-2xl border bg-slate-50 p-4 text-sm leading-6">{body}</pre>
-
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={saveAsDraft}>Mark as Draft</Button>
-            <Link href="/documents"><Button variant="subtle">Back</Button></Link>
+    <div className="mx-auto max-w-4xl px-4 py-8">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">{doc.title}</h1>
+          <div className="mt-1 text-sm opacity-80">
+            <span className="mr-3">Type: {doc.type || "—"}</span>
+            <span className="mr-3">Client: {doc.clientName || "—"}</span>
+            <span>Status: {doc.status || "draft"}</span>
           </div>
         </div>
-      </Card>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => router.push("/documents")}
+            className="rounded-lg border px-4 py-2 text-sm"
+          >
+            Back
+          </button>
+          <button
+            onClick={() => router.push("/document-analyzer")}
+            className="rounded-lg border px-4 py-2 text-sm"
+          >
+            Analyze
+          </button>
+          <button
+            onClick={onDelete}
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border bg-white/5 p-6">
+        <div className="text-sm opacity-80">
+          <div>Jurisdiction: {doc?.meta?.jurisdiction || "—"}</div>
+          <div>Updated: {doc.updatedAt ? new Date(doc.updatedAt).toLocaleString() : "—"}</div>
+        </div>
+
+        <div className="mt-5 rounded-xl border bg-black/10 p-4">
+          <pre className="whitespace-pre-wrap text-sm leading-6">
+            {doc.content || ""}
+          </pre>
+        </div>
+      </div>
     </div>
   );
 }
