@@ -75,5 +75,3 @@ LegalAssist provides AI-generated content for informational purposes only and do
 
 Asma Ahmed
 Email: [asma.ahmed.work@gmail.com](mailto:asma.ahmed.work@gmail.com)
-
-If you want, I can upgrade this to a **startup-level README (with badges, screenshots, demo GIFs, and pitch-style sections)** to make it stand out on GitHub and Devpost.
