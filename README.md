@@ -1,7 +1,3 @@
-Here’s a clean, professional **README.md** you can copy and paste directly into GitHub:
-
----
-
 # LegalAssist
 
 AI-powered legal tools designed for lawyers and business professionals to enhance practice efficiency. LegalAssist enables instant generation of legal documents, case-specific analysis, and AI-driven document review.
