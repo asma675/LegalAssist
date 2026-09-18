@@ -9,3 +9,9 @@ uploads/
 .DS_Store
 backend/.env
 .env
+backend/.env
+.env
+node_modules/
+__pycache__/
+*.pyc
+uploads/
