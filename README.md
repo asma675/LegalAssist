@@ -1,47 +1,453 @@
-# Rafi Legal Assist v3
+# Rafi Legal Assist
 
-**Rafi** is a self-hostable, Canadian-first legal-workflow MVP for small and midsize legal teams. Version 3 keeps the v2 **Matter Intelligence Graph** and adds a complete public early-access website, waitlist, demo-request funnel, founder CRM, comparison section, FAQ, mission story, privacy/terms prototype pages, and production-oriented marketing routes.
+**A source-grounded legal AI workspace combining hybrid RAG, matter intelligence, evidence provenance, and human-in-the-loop review.**
 
-> Rafi is legal-work software, not a law firm and not a substitute for professional legal judgment. AI-assisted outputs are drafts requiring qualified human review.
+Rafi is a full-stack legal-tech project built for Canadian legal workflows. Rather than operating as a general-purpose chatbot, Rafi connects legal research with the underlying **matter, documents, evidence, claims, authorities, deadlines, and review decisions**.
 
-## What is new in v3
+The project demonstrates practical engineering across **Retrieval-Augmented Generation, pgvector, PostgreSQL, FastAPI, React, multi-tenant application design, document intelligence, and grounded AI workflows**.
 
-- **Public Rafi website** at `/` with a premium dark-purple editorial design, original Rafi copy and product mockups.
-- **Request a Demo** flow at `/request-demo`, with a high-conversion split layout inspired by best practices from enterprise legal-AI websites while using original Rafi design/copy.
-- **Early-access waitlist** at `/waitlist`.
-- **Founder CRM** inside the authenticated app under **Early Access**, showing saved waitlist and demo leads.
-- **Startup-style product storytelling**: mission, capability cards, category comparison, FAQ, early-access positioning and transparent caveats.
-- **Public privacy and terms prototype pages** at `/privacy` and `/terms`.
-- Public forms persist to PostgreSQL through first-party FastAPI endpoints; no third-party form builder is required.
-- Basic honeypot spam field and Pydantic input validation on public forms.
-- Existing authenticated workspace moved to `/app`.
-- **Matter Intelligence Graph**: Claims → Evidence → Legal Issues → Authorities.
-- **Evidence click-through**: evidence nodes open the stored document page text and quoted passage.
-- **Automatic contradiction detection** for conflicting dated source statements such as different termination dates.
-- **Evidence-linked chronology** built from stored matter documents.
-- **Issue-to-authority mapping** using Rafi's authorized / curated corpus.
-- **Matter-wide missing-information checklist** by practice area.
-- **Recorded deadline layer** sourced from matter, task, and calendar records rather than guessed by the model.
-- **Recommended next actions** with explicit lawyer approval state.
-- **Matter change digest** on the Command Center.
-- **Matter brief** generated from the connected intelligence layer.
-- **Firm Playbooks** for persistent institutional rules and contract review.
-- **Automatic intelligence refresh** after a matter document is uploaded.
-- Better API error messages and upgraded demo login: `admin@rafi.app`.
+> **Rafi is a portfolio/development-stage legal-work platform, not a law firm and not a substitute for professional legal judgment. AI-assisted outputs are drafts requiring qualified human review.**
 
-The v1 features remain: Assistant, matters, clients, Vault, research, drafting, document review, templates, contract intelligence, workflow agents, tasks, calendar integration scaffold, conflict checking, client portal scaffold, signatures API, billing scaffold, notes/messages APIs, and Canadian legal corpus import tooling.
+---
 
-## Quick start with Docker
+## Why I Built Rafi
 
-### 1. Open PowerShell in the project folder
+General-purpose LLMs can produce useful legal text, but legal work requires more than generating an answer.
 
-```powershell
-cd "C:\path\to\rafi"
+A useful legal system needs to answer questions such as:
+
+- What document supports this factual claim?
+- Which page contains the evidence?
+- Are two source documents inconsistent?
+- Which authority was retrieved for this legal issue?
+- Is a deadline recorded in the matter, or was it inferred?
+- What information is still missing?
+- Which recommendations still require lawyer approval?
+
+Rafi is designed around that problem.
+
+### Core idea
+
+```text
+Matter
+  │
+  ├── Documents
+  │      │
+  │      └── Evidence
+  │              │
+  ├── Claims ────┘
+  │
+  ├── Legal Issues
+  │      │
+  │      └── Authorities
+  │
+  ├── Deadlines
+  ├── Missing Information
+  └── Recommended Actions
 ```
 
-### 2. Create or review the environment file
+**ChatGPT gives an answer. Rafi helps operate the matter.**
 
-The ZIP includes a safe development `.env`. To recreate it from the example:
+---
+
+# Hybrid Retrieval-Augmented Generation
+
+Rafi includes a real retrieval layer rather than sending user prompts directly to an LLM.
+
+The current pipeline combines:
+
+```text
+User query
+    │
+    ├───────────────┐
+    ▼               ▼
+Keyword retrieval   Query embedding
+                    │
+                    ▼
+               pgvector search
+               cosine similarity
+    │               │
+    └───────┬───────┘
+            ▼
+ Reciprocal Rank Fusion
+            │
+            ▼
+ Top-ranked source chunks
+            │
+            ▼
+  Grounded generation
+            │
+            ▼
+ Response + citations
+            │
+            ▼
+     Human review
+```
+
+## Retrieval stack
+
+Rafi currently implements:
+
+- OpenAI embeddings
+- `text-embedding-3-small`
+- 1536-dimensional vectors
+- PostgreSQL + pgvector
+- chunk-level semantic retrieval
+- cosine-distance ranking
+- deterministic lexical retrieval
+- Reciprocal Rank Fusion
+- source metadata preservation
+- keyword fallback when embeddings are unavailable
+
+The vector representation is stored using:
+
+```python
+Vector(1536)
+```
+
+Retrieved source chunks — rather than the entire corpus — are passed into the generation layer.
+
+---
+
+## Grounded AI Generation
+
+Rafi's AI layer is explicitly instructed not to invent:
+
+- legal authorities;
+- citations;
+- quotations;
+- source facts;
+- deadlines;
+- supporting evidence.
+
+When sources are retrieved, the model is instructed to cite only those supplied sources.
+
+A typical response retains provenance such as:
+
+```text
+Authority
+Citation
+Source URL
+Jurisdiction
+Retrieved source text
+Retrieval rank
+Retrieval mode
+Chunk ID
+Verification metadata
+```
+
+This makes the generation step inspectable rather than treating the LLM as the source of truth.
+
+---
+
+# Matter Intelligence Graph
+
+Rafi connects retrieved legal information to the actual matter.
+
+The graph currently models entities including:
+
+```text
+MatterFact
+Claim
+EvidenceLink
+LegalIssue
+IssueAuthority
+MatterDeadline
+MissingInformation
+Recommendation
+MatterDigest
+IntelligenceRun
+DocumentPage
+FirmPlaybook
+```
+
+The central workflow is:
+
+```text
+Document
+   ↓
+Evidence
+   ↓
+Claim
+   ↓
+Conflict / contradiction
+   ↓
+Legal issue
+   ↓
+Retrieved authority
+   ↓
+Review
+   ↓
+Action
+```
+
+---
+
+## Evidence Provenance
+
+Uploaded matter documents are parsed and stored with page-level text where available.
+
+Claims can therefore link back to:
+
+```text
+Document
+Page
+Quoted passage
+Relationship
+Confidence / review state
+```
+
+The UI supports evidence click-through so reviewers can inspect the underlying source rather than relying only on an AI-generated summary.
+
+---
+
+## Contradiction Detection
+
+Rafi includes deterministic logic for identifying selected factual inconsistencies.
+
+For example, if separate source records state:
+
+```text
+Termination Letter
+Effective termination date: March 3, 2026
+```
+
+and:
+
+```text
+HR Status Record
+Effective termination date: March 7, 2026
+```
+
+Rafi can create a conflict claim and link both source passages rather than silently choosing one date.
+
+This is intentional: in higher-risk workflows, deterministic source comparison can be preferable to asking an LLM to resolve ambiguity.
+
+---
+
+## Recorded Deadlines, Not Invented Deadlines
+
+Matter deadlines are derived from stored:
+
+- matter records;
+- tasks;
+- calendar events.
+
+Rafi does not ask the language model to fabricate procedural deadlines.
+
+The system distinguishes **recorded information** from AI inference and requires professional review before reliance.
+
+---
+
+# Retrieval Evaluation
+
+Rafi includes a labeled retrieval evaluation harness.
+
+Example evaluation case:
+
+```json
+{
+  "query": "What authority addresses incentive compensation during the reasonable notice period?",
+  "jurisdiction": "Canada",
+  "relevant_citations": ["2020 SCC 26"]
+}
+```
+
+The current evaluator measures:
+
+- **HitRate@K**
+- **MRR**
+
+This allows retrieval quality to be measured against labeled expected authorities instead of judging RAG quality only by whether an answer "looks good."
+
+Run:
+
+```powershell
+docker compose run --rm backend python scripts/evaluate_retrieval.py
+```
+
+> Retrieval metrics are not presented as overall legal or AI accuracy. Only measured results from the evaluation set should be used in project or résumé claims.
+
+See:
+
+```text
+backend/scripts/evaluate_retrieval.py
+backend/evaluation/
+RAG_UPGRADE_README.md
+```
+
+---
+
+# Technology Stack
+
+### Backend
+
+- Python 3.12
+- FastAPI
+- SQLAlchemy
+- Pydantic
+- PostgreSQL
+- pgvector
+- JWT authentication
+- OpenAI API
+- pypdf
+- python-docx
+
+### Frontend
+
+- React
+- Vite
+- JavaScript
+- Lucide
+- Recharts
+- Nginx
+
+### Infrastructure
+
+- Docker
+- Docker Compose
+- PostgreSQL persistence
+- container health checks
+- environment-based configuration
+
+---
+
+# Application Capabilities
+
+Rafi currently includes:
+
+### AI & Research
+
+- hybrid legal RAG
+- grounded AI assistant
+- Canadian authority retrieval
+- source-linked research
+- legal drafting assistance
+- contract review
+- document analysis
+
+### Matter Intelligence
+
+- matter graph
+- claims and evidence
+- issue-to-authority mapping
+- evidence-linked chronology
+- contradiction detection
+- missing-information tracking
+- deadline tracking
+- recommended next actions
+- matter brief generation
+- matter change digest
+
+### Legal Workflow
+
+- matters
+- clients
+- document vault
+- tasks
+- calendar events
+- conflict checking
+- firm playbooks
+- notes and messages
+- workflow definitions
+- signature API scaffold
+- billing/integration scaffolds
+
+### Product
+
+- authenticated workspace
+- public product site
+- demo-request workflow
+- early-access waitlist
+- founder lead view
+- privacy/terms prototype pages
+
+---
+
+# Example Legal Research Flow
+
+A research request such as:
+
+```text
+What authority governs incentive compensation during a wrongful-dismissal notice period?
+```
+
+can follow:
+
+```text
+1. Query submitted
+        ↓
+2. Keyword retrieval
+        +
+   vector similarity search
+        ↓
+3. Rankings combined
+        ↓
+4. Relevant corpus chunks selected
+        ↓
+5. Retrieved authority metadata preserved
+        ↓
+6. Source material supplied to the LLM
+        ↓
+7. Grounded draft returned
+        ↓
+8. User can inspect citations and sources
+        ↓
+9. Human legal review required
+```
+
+---
+
+# Canadian Legal Corpus
+
+Rafi is deliberately designed around **authorized and traceable source material**.
+
+The built-in development corpus contains editorial notes for selected Supreme Court of Canada authorities and official federal-law references.
+
+Example authorities include:
+
+- *Bhasin v. Hrynew*, 2014 SCC 71
+- *Uber Technologies Inc. v. Heller*, 2020 SCC 16
+- *Matthews v. Ocean Nutrition Canada Ltd.*, 2020 SCC 26
+- *Machtinger v. HOJ Industries Ltd.*, [1992] 1 S.C.R. 986
+- Canada Labour Code
+- Canada Business Corporations Act
+- PIPEDA
+
+The repository does **not** claim to contain a comprehensive licensed case-law database.
+
+Additional authorized `.txt` or `.md` material can be placed under:
+
+```text
+data/legal_corpus/
+```
+
+and imported with:
+
+```powershell
+docker compose run --rm backend python scripts/import_local_corpus.py
+```
+
+Federal Justice Laws material can be synchronized through:
+
+```powershell
+docker compose run --rm backend python scripts/sync_justice_laws.py
+```
+
+Third-party legal databases should not be bulk-copied unless licensing or authorization permits it.
+
+---
+
+# Quick Start
+
+## 1. Clone the repository
+
+```powershell
+git clone https://github.com/asma675/LegalAssist.git
+cd LegalAssist
+```
+
+## 2. Create the environment file
 
 ```powershell
 Copy-Item backend\.env.example backend\.env
@@ -54,194 +460,280 @@ $secret = ([guid]::NewGuid().ToString("N") + [guid]::NewGuid().ToString("N"))
 $secret
 ```
 
-Paste it into `backend\.env` as `SECRET_KEY=...`.
+Add the generated value to:
 
-### 3. Build and start
+```env
+SECRET_KEY=your-generated-secret
+```
+
+---
+
+## 3. Start with Docker
 
 ```powershell
 docker compose up -d --build
 ```
 
-Check status:
+Verify:
 
 ```powershell
-docker compose ps -a
+docker compose ps
+```
+
+Expected services:
+
+```text
+db          healthy
+backend     healthy
+frontend    running
 ```
 
 Open:
 
-- Public website: http://localhost:8080
-- Request demo: http://localhost:8080/request-demo
-- Waitlist: http://localhost:8080/waitlist
-- Authenticated Rafi workspace: http://localhost:8080/app
-- API docs: http://localhost:8000/docs
-- Health check: http://localhost:8080/api/health
+```text
+Public site:        http://localhost:8080
+Application:        http://localhost:8080/app
+API documentation:  http://localhost:8000/docs
+Health endpoint:    http://localhost:8000/api/health
+```
 
-### Demo login
+---
+
+# Demo Account
 
 ```text
 Email: admin@rafi.app
 Password: ChangeMe123!
 ```
 
-Change the demo password before exposing the app to any network.
+This credential is only for local demonstration.
 
-## Upgrading to Rafi v3
+Change it before exposing the application to any external network.
 
-Rafi v3 creates the new public `waitlist_leads` and `demo_requests` tables automatically while preserving the v2 Matter Intelligence tables. Existing demo credentials remain `admin@rafi.app` / `ChangeMe123!`.
+---
 
-If you want the complete fresh v3 demo dataset, including the sample Patel evidence conflict, and **you do not need your current Docker demo data**, reset the local volumes once:
+# Enable AI + Vector Retrieval
 
-```powershell
-docker compose down -v
-docker compose up -d --build
+Add your API key to:
+
+```text
+backend/.env
 ```
-
-**Do not use `-v` if the Docker database contains data you want to keep.**
-
-## Environment variables
-
-`backend/.env`:
-
-```env
-DATABASE_URL=postgresql+psycopg://rafi:rafi@db:5432/rafi
-SECRET_KEY=replace-with-a-long-random-secret
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-5-mini
-CORS_ORIGINS=http://localhost:8080,http://localhost:5173
-UPLOAD_DIR=/app/uploads
-DEMO_MODE=true
-STRIPE_SECRET_KEY=
-STRIPE_WEBHOOK_SECRET=
-STRIPE_PRICE_PROFESSIONAL=
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=http://localhost:8000/api/calendar/google/callback
-```
-
-### AI
-
-Rafi works without an OpenAI key in deterministic demo mode. It will build the Matter Intelligence Graph and retrieve corpus sources without generating unsupported legal conclusions.
-
-To enable source-grounded narrative drafting, set:
 
 ```env
 OPENAI_API_KEY=your_key_here
 OPENAI_MODEL=gpt-5-mini
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+OPENAI_EMBEDDING_DIMENSIONS=1536
 ```
 
-Then restart the backend:
+Never commit the real `.env` file.
+
+Build embeddings:
 
 ```powershell
-docker compose restart backend
+docker compose run --rm backend python scripts/reindex_corpus.py
 ```
 
-Never commit a real key to Git.
-
-## Canadian legal corpus
-
-The built-in seed contains editorial notes for real Supreme Court of Canada authorities and a small set of official federal-law references. These are deliberately notes and metadata, not copied case-law databases.
-
-To import the Department of Justice Canada consolidated federal Acts and regulations through the included importer:
+Verify vector readiness:
 
 ```powershell
-docker compose run --rm backend python scripts/sync_justice_laws.py
+docker compose run --rm backend python scripts/verify_rag_upgrade.py
 ```
 
-The importer is designed to fail if it cannot build the intended large corpus instead of pretending a large import succeeded.
-
-For your own licensed or authorized `.txt` / `.md` materials, place them under:
+A successfully indexed environment should report:
 
 ```text
-data/legal_corpus/
+chunks: >0
+embedded_chunks: >0
+vector_ready: True
+retrieval: hybrid_vector_keyword
 ```
 
-then run:
+---
 
-```powershell
-docker compose run --rm backend python scripts/import_local_corpus.py
-```
+# Resilient Retrieval
 
-Do not bulk-copy CanLII or another database unless your licence or authorization allows it.
-
-## Matter Intelligence architecture
-
-The v2 backend introduces these entities:
-
-- `MatterFact`
-- `Claim`
-- `EvidenceLink`
-- `LegalIssue`
-- `IssueAuthority`
-- `MatterDeadline`
-- `MissingInformation`
-- `Recommendation`
-- `MatterDigest`
-- `IntelligenceRun`
-- `DocumentPage`
-- `FirmPlaybook`
-
-When a matter is refreshed, Rafi:
-
-1. reads tenant-scoped matter documents;
-2. extracts source-linked dated facts;
-3. builds reviewable claims;
-4. detects conflicting dates for the same event where the text supports that comparison;
-5. links claims to exact document/page text;
-6. creates practice-area issue prompts;
-7. retrieves possible Canadian authorities from the corpus;
-8. derives deadlines from stored matter/task/event records;
-9. identifies information that counsel should confirm;
-10. proposes next actions; and
-11. writes a matter-change digest.
-
-The system **does not treat model output as a verified legal conclusion**. Authority relevance and legal significance remain review tasks for counsel.
-
-## Useful v3 endpoints
+Rafi can continue operating if the embedding service is unavailable.
 
 ```text
-POST /api/public/waitlist
-POST /api/public/demo-request
-GET  /api/growth/leads
+Embeddings available
+        ↓
+Hybrid semantic + lexical retrieval
+
+Embeddings unavailable
+        ↓
+Deterministic keyword retrieval
+```
+
+This prevents a vector-provider failure from making the research workflow completely unavailable.
+
+---
+
+# Multi-Tenant Design
+
+Authenticated application data is scoped by tenant.
+
+For tenant-owned entities, backend queries filter records through the authenticated user's:
+
+```text
+tenant_id
+```
+
+This applies across core matter, client, document, task, evidence, and workflow operations.
+
+Rafi currently uses JWT authentication.
+
+The project should not yet be described as having enterprise-grade RBAC; additional role-specific policy enforcement would be required.
+
+---
+
+# API Examples
+
+```text
+POST /api/auth/login
+
+GET  /api/dashboard
+
+GET  /api/matters
+POST /api/matters
+
 GET  /api/matters/{id}/intelligence
 POST /api/matters/{id}/intelligence/rebuild
 POST /api/matters/{id}/brief
-GET  /api/documents/{document_id}/page/{page_number}
+
+POST /api/documents/upload
+GET  /api/documents/{id}/page/{page}
+
+POST /api/research
+POST /api/ai/chat
+POST /api/contracts/review
+POST /api/drafting/generate
+
 GET  /api/playbooks
 POST /api/playbooks
+
 PATCH /api/recommendations/{id}
 PATCH /api/missing-information/{id}
+
+POST /api/public/waitlist
+POST /api/public/demo-request
 ```
 
-## Docker services
+Interactive API documentation is available through FastAPI at:
 
-- `db`: PostgreSQL 16
-- `backend`: FastAPI / SQLAlchemy on port `8000`
-- `frontend`: React/Vite built into Nginx on port `8080`
+```text
+http://localhost:8000/docs
+```
 
-## Production checklist before real client data
+---
 
-Rafi v3 is a **production-oriented MVP**, not a claim of enterprise readiness. Before using privileged or confidential client data in production, complete at least:
+# Design Decisions
 
-- MFA / SSO and secure user lifecycle management;
-- separate scoped client-portal authentication;
-- encrypted object storage and key management;
-- malware scanning and file-type validation;
-- immutable audit logging;
-- Alembic migrations and tested backup / restore;
-- secrets management rather than `.env` files on servers;
-- HTTPS, secure cookies / hardened token handling, rate limiting and monitoring;
-- encrypted Google OAuth token persistence and completed callback/sync lifecycle;
-- complete Stripe webhook/subscription state handling;
-- legal/privacy/security review for your deployment and jurisdiction;
-- evaluation suites for citation accuracy, extraction accuracy, contradiction false positives, and retrieval quality.
+Several Rafi design choices are intentional.
 
-## Public website design note
+### Deterministic logic where possible
 
-The public website takes **high-level layout inspiration** from strong contemporary SaaS patterns: large editorial legal-AI demo pages, focused request-demo funnels, startup mission storytelling, comparison tables and FAQs. All Rafi copy, colors, product mockups, components and assets in this repository are original; the project does not copy Harvey or Gravity logos, images, customer marks or proprietary page text.
+Not every workflow needs an LLM.
 
-## Positioning
+Rafi uses deterministic logic for selected functions such as:
 
-**ChatGPT gives an AI answer. Rafi helps operate the legal matter.**
+- date extraction;
+- source contradiction identification;
+- deadline collection;
+- tenant filtering;
+- workflow state.
 
-Rafi's intended differentiation is the connected workflow around AI: matter context, evidence provenance, Canadian research, firm playbooks, review controls, deadlines, client work, and repeatable agents.
+This reduces unnecessary model dependence.
+
+### LLMs for synthesis rather than truth
+
+The model is primarily used to synthesize retrieved information.
+
+The source material — not the language model — remains the basis for factual and legal review.
+
+### Human-in-the-loop
+
+Outputs are marked for professional review rather than automatically treated as final legal conclusions.
+
+---
+
+# Production Readiness
+
+Rafi is a **portfolio-grade and development-stage MVP**, not a claim of enterprise legal-AI readiness.
+
+Before processing real confidential or privileged client data, additional work would be required around:
+
+- MFA / SSO;
+- complete role-based access control;
+- encrypted object storage;
+- secrets management;
+- malware scanning;
+- immutable audit logs;
+- database migrations;
+- backup / restore testing;
+- HTTPS and secure cookies;
+- rate limiting;
+- monitoring and alerting;
+- formal privacy/security review;
+- production OAuth lifecycle;
+- billing/subscription lifecycle;
+- retrieval and generation evaluation;
+- citation validation;
+- prompt-injection and document-security testing.
+
+---
+
+# Project Status
+
+### Implemented
+
+- full-stack React + FastAPI application
+- PostgreSQL persistence
+- Dockerized deployment
+- JWT authentication
+- tenant-scoped application data
+- matter/document/task workflows
+- document text extraction
+- Matter Intelligence Graph
+- evidence provenance
+- contradiction detection
+- legal authority retrieval
+- pgvector embeddings
+- hybrid RAG
+- Reciprocal Rank Fusion
+- source-grounded generation
+- retrieval evaluation tooling
+- public demo/waitlist experience
+
+### Continuing work
+
+- larger authorized corpus
+- 100+ query held-out retrieval benchmark
+- stronger lexical retrieval
+- approximate-nearest-neighbour indexing
+- automated test coverage
+- CI/CD
+- production security controls
+- role-specific authorization
+- broader AI quality evaluation
+
+---
+
+# Summary
+
+> I built Rafi as a source-grounded legal AI system rather than a simple chatbot. The backend uses FastAPI, SQLAlchemy and PostgreSQL, while the frontend is React. For RAG, I chunk an authorized legal corpus, generate embeddings, store them in PostgreSQL with pgvector, perform semantic cosine-similarity retrieval and deterministic lexical retrieval, and combine the rankings using Reciprocal Rank Fusion. Only retrieved source material is supplied to the generation layer. I also built a Matter Intelligence Graph connecting claims, evidence, legal issues and authorities, along with source-level provenance, contradiction detection, tenant-scoped data access and human-review controls. I added a labeled retrieval evaluation framework so retrieval quality can be measured using HitRate@K and MRR rather than relying on subjective demos.
+
+---
+
+## Repository
+
+**Rafi Legal Assist**
+
+`asma675/LegalAssist`
+
+---
+
+## License
+
+See [`LICENSE`](LICENSE).
