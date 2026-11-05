@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     access_token_minutes: int = 720
     openai_api_key: str | None = None
     openai_model: str = "gpt-5-mini"
+    openai_embedding_model: str = "text-embedding-3-small"
+    openai_embedding_dimensions: int = 1536
     cors_origins: str = "http://localhost:5173,http://localhost:8080"
     upload_dir: str = "./uploads"
     max_upload_mb: int = 25

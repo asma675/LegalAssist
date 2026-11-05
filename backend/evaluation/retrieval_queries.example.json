@@ -1,0 +1,12 @@
+[
+  {
+    "query": "What does Canadian law say about the duty of honest contractual performance?",
+    "jurisdiction": "Canada",
+    "relevant_citations": ["2014 SCC 71"]
+  },
+  {
+    "query": "What authority discusses a broader approach to summary judgment?",
+    "jurisdiction": "Ontario",
+    "relevant_citations": ["2014 SCC 7"]
+  }
+]

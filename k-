@@ -1,0 +1,47 @@
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/.env.example', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/Dockerfile', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/ai.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/auth.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/config.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/db.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/intelligence.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/main.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/models.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/rag.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/schemas.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/seed.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/requirements.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/scripts/import_local_corpus.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/scripts/sync_justice_laws.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'bootstrap.sh', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'data/legal_corpus/README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docker-compose.yml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/ARCHITECTURE.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/MIGRATION_FROM_BASE44.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/PRODUCT_ROADMAP.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/V2_CHANGELOG.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/V3_CHANGELOG.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/Dockerfile', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/index.html', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/nginx.conf', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/App.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/PublicSite.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/api.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/main.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/styles.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'postcss.config.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'start-rafi.ps1', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'stop-rafi.ps1', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tailwind.config.js', LF will be replaced by CRLF the next time Git touches it
+ .gitignore            |   1 [32m+[m
+ backend/.env.example  |   2 [32m+[m
+ backend/app/config.py |   2 [32m+[m
+ backend/app/main.py   |  24 [32m+++++++[m[31m-[m
+ backend/app/models.py |  12 [32m++++[m
+ backend/app/rag.py    | 150 [32m++++++++++++++++++++++++++++++++++++++++++++++[m[31m----[m
+ docker-compose.yml    |  27 [32m++++++++[m[31m-[m
+ 7 files changed, 203 insertions(+), 15 deletions(-)

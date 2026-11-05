@@ -1,5 +1,6 @@
 from datetime import datetime
 from sqlalchemy import String, Text, DateTime, ForeignKey, Boolean, Integer, JSON, Float
+from pgvector.sqlalchemy import Vector
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -181,6 +182,17 @@ class CorpusDocument(Base):
     current_to: Mapped[str | None] = mapped_column(String(80), nullable=True)
     text_content: Mapped[str] = mapped_column(Text)
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class CorpusChunk(Base):
+    __tablename__ = "corpus_chunks"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    corpus_document_id: Mapped[int] = mapped_column(ForeignKey("corpus_documents.id", ondelete="CASCADE"), index=True)
+    chunk_index: Mapped[int] = mapped_column(Integer, index=True)
+    text_content: Mapped[str] = mapped_column(Text)
+    token_estimate: Mapped[int] = mapped_column(Integer, default=0)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

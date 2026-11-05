@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from sqlalchemy import or_
+from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 from .config import settings
 from .db import Base, engine, get_db
@@ -29,6 +29,9 @@ app.add_middleware(
 @app.on_event("startup")
 def startup():
     Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
+    if engine.dialect.name == "postgresql":
+        with engine.begin() as conn:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     Base.metadata.create_all(bind=engine)
     db = next(get_db())
     try:
@@ -44,6 +47,10 @@ def health(db: Session = Depends(get_db)):
         "app": settings.app_name,
         "version": "3.0.0",
         "corpus_documents": db.query(CorpusDocument).count(),
+        "corpus_chunks": db.query(CorpusChunk).count(),
+        "embedded_chunks": db.query(CorpusChunk).filter(CorpusChunk.embedding.is_not(None)).count(),
+        "retrieval": "hybrid_vector_keyword" if db.query(CorpusChunk).filter(CorpusChunk.embedding.is_not(None)).first() else "keyword_fallback",
+        "embedding_model": settings.openai_embedding_model,
         "demo_mode": settings.demo_mode,
         "matter_intelligence": True,
         "public_early_access": True,
@@ -383,7 +390,20 @@ def research_history(db: Session = Depends(get_db), user: User = Depends(current
 
 
 def source_payload(d: CorpusDocument, limit: int = 1800):
-    return {"id": d.id, "title": d.title, "citation": d.citation, "url": d.source_url, "text": d.text_content[:limit], "source_type": d.source_type, "current_to": d.current_to, "verified": bool((d.metadata_json or {}).get("verified_case_name_and_citation") or (d.metadata_json or {}).get("official_source"))}
+    retrieved_text = getattr(d, "_rag_text", None) or d.text_content
+    return {
+        "id": d.id,
+        "title": d.title,
+        "citation": d.citation,
+        "url": d.source_url,
+        "text": retrieved_text[:limit],
+        "source_type": d.source_type,
+        "current_to": d.current_to,
+        "verified": bool((d.metadata_json or {}).get("verified_case_name_and_citation") or (d.metadata_json or {}).get("official_source")),
+        "retrieval_mode": getattr(d, "_rag_mode", "keyword"),
+        "retrieval_rank": getattr(d, "_rag_rank", None),
+        "chunk_id": getattr(d, "_rag_chunk_id", None),
+    }
 
 
 @app.post("/api/research")
